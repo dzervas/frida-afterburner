@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"lib": ["es6"],
+		"target": "es6",
+		"declaration": true,
+		"declarationDir": "./dist/types",
+		"outDir": "./dist/js",
+		"typeRoots": ["node_modules/@types"],
+		"strictNullChecks": true,
+		"noImplicitAny": false,
+		"types": ["node"]
+	},
+	"include": [
+		"src/**/*.ts",
+		"node_modules/@types/frida-gum/*.ts"
+	],
+	"exclude": [
+		"src/**/*.test.ts"
+	]
+}
