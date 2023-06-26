@@ -132,3 +132,4 @@ __handlers__
 examples/cpp_strings/main
 *.so
 *.o
+_*.js
