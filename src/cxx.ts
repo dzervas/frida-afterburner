@@ -18,5 +18,13 @@ export class CXX {
 	}
 }
 
-NativePointer["__proto__"]["readStdString"] = CXX.readStdString;
-NativePointer["__proto__"]["readWStdString"] = CXX.readStdWString;
+Object.defineProperties(NativePointer.prototype, {
+	"readStdString": {
+		enumerable: true,
+		value: function (this: NativePointer) { return CXX.readStdString(this); },
+	},
+	"readStdWString": {
+		enumerable: true,
+		value: function (this: NativePointer) { return CXX.readStdWString(this); },
+	},
+});

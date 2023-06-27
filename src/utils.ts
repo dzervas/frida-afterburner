@@ -56,20 +56,35 @@ export class Utils {
 	}
 }
 
-Process["__proto__"]["filterSymbols"] = Utils.filterSymbols;
-Process["__proto__"]["findSymbol"] = Utils.findSymbol;
-Process["__proto__"]["getSymbol"] = Utils.getSymbol;
-Process["__proto__"]["getSymbolNativeFunctionAlt"] = Utils.getSymbolNativeFunctionAlt;
-NativePointer["__proto__"]["attach"] = function (this: NativePointer, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined) {
-	return Interceptor.attach(this, {
-		onEnter: onEnter,
-		onLeave: onLeave
-	});
-};
-NativeFunction["__proto__"]["attach"] = function <RetType extends NativeFunctionReturnType, ArgTypes extends NativeFunctionArgumentType[] | []>(this: NativeFunction<GetNativeFunctionReturnValue<RetType>, ResolveVariadic<Extract<GetNativeFunctionArgumentValue<ArgTypes>, unknown[]>>>, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined) {
-	console.log("asdf")
-	return Interceptor.attach(this, {
-		onEnter: onEnter,
-		onLeave: onLeave
-	});
-};
+Object.defineProperties(Process, {
+	"filterSymbols": {
+		enumerable: true,
+		value: function (this: typeof Process, search: string): {[key: string]: NativePointer} { return Utils.filterSymbols(search); }
+	},
+	"findSymbol": {
+		enumerable: true,
+		value: function (this: typeof Process, search: string): SymbolNativePointer { return Utils.findSymbol(search); }
+	},
+	"getSymbol": {
+		enumerable: true,
+		value: function (this: typeof Process, search: string): SymbolNativePointer { return Utils.getSymbol(search); }
+	},
+	"getSymbolNativeFunctionAlt": {
+		enumerable: true,
+		value: function <RetType extends NativeFunctionReturnType, ArgTypes extends NativeFunctionArgumentType[] | []>(this: typeof Process, search: string, altSearch: string, ret: RetType, args: ArgTypes): NativeFunction<GetNativeFunctionReturnValue<RetType>, ResolveVariadic<Extract<GetNativeFunctionArgumentValue<ArgTypes>, unknown[]>>> { return Utils.getSymbolNativeFunctionAlt(search, altSearch, ret, args); }
+	}
+});
+
+Object.defineProperties(NativePointer.prototype, {
+	"attach": {
+		enumerable: true,
+		value: function (this: NativePointer, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onEnter: onEnter, onLeave: onLeave }); }
+	}
+});
+
+Object.defineProperties(NativeFunction.prototype, {
+	"attach": {
+		enumerable: true,
+		value: function <RetType extends NativeFunctionReturnType, ArgTypes extends NativeFunctionArgumentType[] | []>(this: NativeFunction<GetNativeFunctionReturnValue<RetType>, ResolveVariadic<Extract<GetNativeFunctionArgumentValue<ArgTypes>, unknown[]>>>, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onEnter: onEnter, onLeave: onLeave }); }
+	}
+});
