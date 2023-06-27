@@ -79,12 +79,28 @@ Object.defineProperties(NativePointer.prototype, {
 	"attach": {
 		enumerable: true,
 		value: function (this: NativePointer, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onEnter: onEnter, onLeave: onLeave }); }
-	}
-});
-
-Object.defineProperties(NativeFunction.prototype, {
-	"attach": {
+	},
+	"onEnter": {
 		enumerable: true,
-		value: function <RetType extends NativeFunctionReturnType, ArgTypes extends NativeFunctionArgumentType[] | []>(this: NativeFunction<GetNativeFunctionReturnValue<RetType>, ResolveVariadic<Extract<GetNativeFunctionArgumentValue<ArgTypes>, unknown[]>>>, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onEnter: onEnter, onLeave: onLeave }); }
-	}
+		value: function (this: NativePointer, onEnter: ((this: InvocationContext, args: InvocationArguments) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onEnter: onEnter }); }
+	},
+	"onLeave": {
+		enumerable: true,
+		value: function (this: NativePointer, onLeave: ((this: InvocationContext, retval: InvocationReturnValue) => void) | undefined): InvocationListener { return Interceptor.attach(this, { onLeave: onLeave }); }
+	},
+	"replace": {
+		enumerable: true,
+		value: function (this: NativePointer, replacement: NativePointerValue): void { Interceptor.replace(this, replacement); }
+	},
+	"replaceCb": {
+		enumerable: true,
+		value: function <RetType extends NativeCallbackReturnType, ArgTypes extends NativeCallbackArgumentType[] | []>(this: NativePointer, callback: NativeCallbackImplementation<
+			GetNativeCallbackReturnValue<RetType>,
+			RecursiveValuesOf<NativeCallbackArgumentTypeMap>[]
+		>, retType: RetType, argTypes: ArgTypes, abi?: NativeABI): void { Interceptor.replace(this, new NativeCallback(callback, retType, argTypes, abi)); }
+	},
+	"revert": {
+		enumerable: true,
+		value: function (this: NativePointer): void { Interceptor.revert(this); }
+	},
 });
