@@ -2,5 +2,6 @@
 	"cSpell.words": [
 		"bytearray",
 		"nativefunction"
-	]
+	],
+	"javascript.format.semicolons": "insert"
 }

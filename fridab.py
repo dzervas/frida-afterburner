@@ -10,13 +10,17 @@ def _append_script(orig: str, script: str, name: str) -> str:
 	return orig + "\n✄\n" + str(len(script)) + " " + name + "\n✄\n" + script
 
 class FridaB(REPLApplication):
+	# def _make_repl_runtime(self) -> str:
+		# result = super()._make_repl_runtime()
 	def _create_repl_script(self) -> str:
 		result = super()._create_repl_script()
+		additional_scripts = ""
 
+		# The rc gets appended AFTER the afterburner but BEFORE any user scripts
 		try:
 			with open(path.expanduser("~/.fridarc.js"), "r") as f:
 				contents = f.read()
-				result = _append_script(result, contents, "~/.fridarc.js")
+				additional_scripts = _append_script(additional_scripts, contents, "~/.fridarc.js")
 				self._print("Loaded \033[93m~/.fridarc.js\033[00m")
 		except FileNotFoundError:
 			pass
@@ -27,12 +31,15 @@ class FridaB(REPLApplication):
 				with open(path.abspath("dist/bundle.js"), "r") as f:
 					contents = f.read()
 
-			result = _append_script(result, contents, "/frida-afterburner.js")
+			additional_scripts = _append_script(additional_scripts, contents, "/frida-afterburner.js")
 			self._print("\033[91mAfterburner\033[00m \033[92menabled\033[00m")
 		except FileNotFoundError:
 			pass
 
-		# print(result)
+		repl_script_start = result.index("\n✄\n") + 3
+		repl_script_end = result.index("\n✄\n", repl_script_start + 1)
+		result = result[:repl_script_end] + additional_scripts + result[repl_script_end:]
+
 		return result
 
 def main() -> None:
