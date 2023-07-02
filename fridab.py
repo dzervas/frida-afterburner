@@ -1,7 +1,10 @@
+#!/usr/bin/env python
+
 from frida_tools.repl import REPLApplication
 from os import path
 
-AFTERBURNER_SCRIPT = ""
+__version__ = "0.1.0"
+AFTERBURNER_SCRIPT = '${AFTERBURNER_SCRIPT}'
 
 def _append_script(orig: str, script: str, name: str) -> str:
 	return orig + "\n✄\n" + str(len(script)) + " " + name + "\n✄\n" + script
@@ -20,7 +23,7 @@ class FridaB(REPLApplication):
 
 		try:
 			contents = AFTERBURNER_SCRIPT
-			if not contents:
+			if not contents or contents == '${AFTERBURNER_SCRIPT}':
 				with open(path.abspath("dist/bundle.js"), "r") as f:
 					contents = f.read()
 
