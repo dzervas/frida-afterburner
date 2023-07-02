@@ -48,11 +48,13 @@ export interface FieldDef {
 	offset: number;
 }
 
+const structFilter = (v: any) => v.hasOwnProperty('__is_struct') && v.__is_struct;
+
 export class Struct<T extends StructSchema<T>> {
 	public readonly fields: FieldDef[];
+	public address: NativePointer | null = null;
 
 	constructor(config: T, offset: number = 0) {
-		const structFilter = (v: any) => v.hasOwnProperty('__is_struct') && v.__is_struct;
 		const populateFields = (obj: any, fields: StructSchema<any>, offset: number = 0): { f: FieldDef[], s: number} => {
 			let result: { f: FieldDef[], s: number } = { f: [], s: 0 };
 
@@ -112,72 +114,82 @@ export class Struct<T extends StructSchema<T>> {
 		this.fields = populateFields(this, config, offset).f;
 	}
 
-	public allocNew(): NativePointer {
-		const structPtr = Memory.alloc(this.length);
-
+	public alloc(): void {
 		for (const field of this.fields) {
 			const fieldName = field.name;
 			const fieldValue = this[fieldName];
 			const fieldType = field.type;
 
-			if (fieldType instanceof Struct) {
-				this[fieldName] = (fieldType as Struct<any>).allocNew();
-			// } else if (fieldType instanceof Field) {
-			// 	this[fieldName] = fieldValue;
-			} else if (Array.isArray(fieldType) && fieldType.every(value => value instanceof Struct)) {
-				this[fieldName] = fieldType.map(value => value.allocNew());
-			} else {
-				this[fieldName] = fieldValue;
+			if (structFilter(fieldType)) {
+				this[fieldName].alloc();
+			} else if (Array.isArray(fieldType)) {
+				fieldValue
+					.filter(([_k, v]) => structFilter(v))
+					.map(value => value.alloc());
 			}
 		}
 
-		return structPtr;
+		this.address = Memory.alloc(this.length);
 	}
 
 
 
-	public read(address: NativePointer): void {
-		for (const field in this.fields) {
-			const fieldDef = this.fields[field];
-			const fieldType = fieldDef!.type;
-			const fieldOffset = fieldDef!.offset;
+	public read(address?: NativePointer): void {
+		if (address === undefined && this.address !== null) {
+			address = this.address;
+		} else if (address === undefined) {
+			throw new Error("No address provided - either alloc or provide an address");
+		}
 
-			if (fieldType instanceof Struct) {
-				this[field] = (fieldType as Struct<any>).read(address.add(fieldOffset))
-			} else if (Array.isArray(fieldDef) && fieldDef.every(value => value instanceof Struct)) {
-				for (const nestedStruct of fieldDef) {
-					nestedStruct.write(address.add(fieldOffset));
-				}
+		for (const fdef of this.fields) {
+			const name = fdef!.name;
+			const ftype = fdef!.type;
+			const foffset = fdef!.offset;
+
+			if (structFilter(ftype)) {
+				this[name].read(address.add(foffset))
+			} else if (Array.isArray(fdef) && fdef.every(value => value instanceof Struct)) {
+				// TODO: Handle primitives in init
 			} else {
-				const fieldTypeCaps = field.charAt(0).toUpperCase() + field.slice(1);
-				const readFunc = `read${fieldTypeCaps}`;
-				this[field] = address.add(fieldOffset)[readFunc]();
+				const fieldTypeCaps = (ftype as keyof Field).charAt(0).toUpperCase() + (ftype as keyof Field).slice(1);
+				const readFunc = `to${fieldTypeCaps}`;
+				this[name] = address.add(foffset)[readFunc]();
 			}
 		}
 	}
 
-	public write(address: NativePointer): void {
-		for (const field of this.fields) {
-			const fieldName = field.name;
-			const fieldValue = this[fieldName];
-			const fieldType = field.type;
+	public write(address?: NativePointer): void {
+		if (address === undefined && this.address !== null) {
+			address = this.address;
+		} else if (address === undefined) {
+			throw new Error("No address provided - either alloc or provide an address");
+		}
 
-			if (fieldType instanceof Struct) {
-				const nestedStruct = fieldValue as Struct<any>;
-				nestedStruct.write(address.add(field.offset));
-			} else if (Array.isArray(fieldValue) && fieldValue.every(value => value instanceof Struct)) {
-				for (const nestedStruct of fieldValue) {
-					nestedStruct.write(address.add(field.offset));
-				}
+		for (const fdef of this.fields) {
+			const name = fdef!.name;
+			const ftype = fdef!.type;
+			const foffset = fdef!.offset;
+
+			if (structFilter(ftype)) {
+				this[name].read(address.add(foffset))
+			} else if (Array.isArray(fdef) && fdef.every(value => value instanceof Struct)) {
+				// TODO: Handle primitives in init
 			} else {
-				const fieldTypeCaps = (fieldType as keyof Field).charAt(0).toUpperCase() + (fieldType as keyof Field).slice(1);
-				const writeFunc = `write${fieldTypeCaps}`;
-				this[field.name] = address.add(field.offset)[writeFunc](fieldValue);
+				const fieldTypeCaps = (ftype as keyof Field).charAt(0).toUpperCase() + (ftype as keyof Field).slice(1);
+				const writeFunc = `from${fieldTypeCaps}`;
+				address.add(foffset)[writeFunc](this[name]);
 			}
 		}
 	}
 
-	public dump(address: NativePointer): ArrayBuffer | null {
+	public dump(address?: NativePointer): ArrayBuffer | null {
+		if (address === undefined && this.address !== null) {
+			address = this.address;
+		} else if (address === undefined) {
+			throw new Error("No address provided - either alloc or provide an address");
+		}
+
+		// TODO: Handle arrays and sub-structs? Maybe?
 		return address.readByteArray(this.length);
 	}
 
@@ -186,14 +198,7 @@ export class Struct<T extends StructSchema<T>> {
 
 		if (lastFieldDef.type instanceof Struct) {
 			return lastFieldDef.offset + lastFieldDef.type.length;
-		// } else if (Array.isArray(lastFieldDef.type) && lastFieldDef.type.every(value => value instanceof Struct)) {
-		// 	let totalLength = 0;
-
-		// 	for (const nestedStruct of lastFieldDef.type) {
-		// 		totalLength += nestedStruct.length;
-		// 	}
-
-		// 	return lastFieldDef.offset + totalLength;
+			// TODO: Handle arrays
 		} else {
 			return lastFieldDef.offset + FieldTypeSize[lastFieldDef.type as keyof Field];
 		}
