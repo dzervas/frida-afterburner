@@ -1,5 +1,8 @@
 // Struct constructor type
-export type StructCtor<O> = { new(): O; };
+export type StructCtor<O> = {
+	__is_struct: true,
+	new(offset?: number): O;
+};
 
 // Possible types of the struct fields - primitive, not sub-stracts and/or arrays
 export interface Field {
@@ -45,64 +48,91 @@ export interface FieldDef {
 	offset: number;
 }
 
-export interface StructI<T extends StructSchema<T>> {
-	readonly fields: FieldDef[];
-	read(address: NativePointer): void;
-	write(address: NativePointer): void;
-	dump(address: NativePointer): ArrayBuffer | null;
-	get length(): number;
-	toString(): string;
-}
-
-export class Struct<T extends StructSchema<T>> implements StructI<T> {
-
+export class Struct<T extends StructSchema<T>> {
 	public readonly fields: FieldDef[];
-	// public static Schema: StructFieldsType<any> = {};
 
 	constructor(config: T, offset: number = 0) {
-		let schema: FieldDef[] = [];
-		let currentOffset = offset;
+		const structFilter = (v: any) => v.hasOwnProperty('__is_struct') && v.__is_struct;
+		const populateFields = (obj: any, fields: StructSchema<any>, offset: number = 0): { f: FieldDef[], s: number} => {
+			let result: { f: FieldDef[], s: number } = { f: [], s: 0 };
 
-		for (const field in config) {
-			const fieldType = config[field];
-			if (fieldType instanceof Struct) {
-				currentOffset += fieldType.length;
-			// } else if (Array.isArray(fieldType) && (fieldType).every(value => value instanceof Struct)) {
-			// 	currentOffset += (fieldType).reduce((total, nestedStruct) => total + nestedStruct.length, 0);
-			// } else if (Array.isArray(fieldType) && (fieldType).every(value => value keyof Type)) {
-			// 	currentOffset += (fieldType).reduce((total, nestedStruct) => total + nestedStruct.length, 0);
-			} else {
-				currentOffset += FieldTypeSize[fieldType as keyof Field];
+			for (const name in fields) {
+				const ftype = fields[name];
+
+				if (structFilter(ftype)) {
+					let fstruct = new (ftype as StructCtor<any>)(0);
+					obj[name] = fstruct;
+					result.f.push({
+						name: name,
+						type: fstruct,
+						offset: result.s + offset
+					});
+					result.s += fstruct.length;
+				} else if (Array.isArray(ftype)) {
+					// TODO: We're losing data here. We either need to have an array of `FieldDef` or an array of the same types, cause now we lose the size of each type in the case of an array of primitives
+
+					let currentOffset: number = 0;
+					let arrayDef: typeof ftype = [];
+					for (const felement in ftype) {
+						console.log(felement);
+						const felementType = ftype[felement];
+						if (structFilter(felementType)) {
+							let fstruct = new (felementType as StructCtor<any>)(currentOffset);
+							arrayDef.push(fstruct);
+							currentOffset += fstruct.length;
+						} else {
+							// TODO: Fix this
+							arrayDef.push(undefined as any);
+							// arrayDef.push((felementType as keyof Field));
+							currentOffset += FieldTypeSize[felementType as keyof Field]
+						}
+					}
+					obj[name] = arrayDef;
+					result.f.push({
+						name: name,
+						type: arrayDef,
+						offset: result.s + offset
+					});
+					result.s += currentOffset;
+					console.log(arrayDef);
+				} else {
+					result.f.push({
+						name: name,
+						type: ftype,
+						offset: result.s + offset
+					});
+					result.s += FieldTypeSize[ftype as keyof Field];
+				}
 			}
 
-			schema.push({ type: fieldType, name: field, offset: offset });
+			return result;
 		}
 
-		this.fields = schema;
+
+		this.fields = populateFields(this, config, offset).f;
 	}
 
-	// public static new<T extends StructFields<T>>(): Struct<T> {
-	// 	const instance = new Struct<T>();
-	// 	const structPtr = Memory.alloc(instance.length);
+	public allocNew(): NativePointer {
+		const structPtr = Memory.alloc(this.length);
 
-	// 	const fieldDefinitions = Struct.FieldDefinitions;
-	// 	for (const field of fieldDefinitions) {
-	// 		const fieldName = field.name;
-	// 		const fieldValue = instance[fieldName];
-	// 		const fieldType = field.type;
+		for (const field of this.fields) {
+			const fieldName = field.name;
+			const fieldValue = this[fieldName];
+			const fieldType = field.type;
 
-	// 		if (fieldType instanceof Struct) {
-	// 			instance[fieldName] = new (fieldType as Struct<any>)();
-	// 		} else if (Array.isArray(fieldType) && fieldType.every(value => value instanceof Struct)) {
-	// 			instance[fieldName] = fieldType.map(value => new value());
-	// 		} else {
-	// 			instance[fieldName] = fieldValue;
-	// 		}
-	// 	}
+			if (fieldType instanceof Struct) {
+				this[fieldName] = (fieldType as Struct<any>).allocNew();
+			// } else if (fieldType instanceof Field) {
+			// 	this[fieldName] = fieldValue;
+			} else if (Array.isArray(fieldType) && fieldType.every(value => value instanceof Struct)) {
+				this[fieldName] = fieldType.map(value => value.allocNew());
+			} else {
+				this[fieldName] = fieldValue;
+			}
+		}
 
-	// 	instance.write(structPtr);
-	// 	return instance;
-	// }
+		return structPtr;
+	}
 
 
 
@@ -199,21 +229,15 @@ type StructSchemaTyped<T extends StructSchema<T>> = (
 	{ [K in keyof T as T[K] extends StructCtor<any>[] ? K : never]: T[K] extends StructCtor<infer O>[] ? O[] : never } // case of `hello: [Struct.define({ ... })]`
 ) extends infer O ? (
 	{ [K in keyof O]: O[K] } & // passthrough the above
-	{ [K in keyof StructI<T>]: StructI<T>[K] } // Add the methods of Struct
+	{ [K in keyof Struct<T>]: Struct<T>[K] } // Add the methods of Struct
 ) : never;
 
 // Define a struct that has the fields of the `schema` and the methods of Struct
 export function defineStruct<T extends StructSchema<T>>(schema: T) {
 	class res extends Struct<T> {
-		constructor() {
-			super(schema);
-			Object.entries(schema).forEach(([k, v]: [string, any]) => {
-				// TODO: This shouldn't work
-				// TODO: Handle arrays
-				// TODO: Should we alloc here?
-				if (typeof v === typeof Struct<T>)
-					(this as any)[k] = new v();
-			});
+		public static __is_struct: boolean = true;
+		constructor(offset: number = 0) {
+			super(schema, offset);
 		}
 	};
 
