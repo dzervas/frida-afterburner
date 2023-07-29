@@ -10,8 +10,6 @@ def _append_script(orig: str, script: str, name: str) -> str:
 	return orig + "\n✄\n" + str(len(script)) + " " + name + "\n✄\n" + script
 
 class FridaB(REPLApplication):
-	# def _make_repl_runtime(self) -> str:
-		# result = super()._make_repl_runtime()
 	def _create_repl_script(self) -> str:
 		result = super()._create_repl_script()
 		additional_scripts = ""
@@ -32,13 +30,17 @@ class FridaB(REPLApplication):
 					contents = f.read()
 
 			additional_scripts = _append_script(additional_scripts, contents, "/frida-afterburner.js")
-			self._print("\033[91mAfterburner\033[00m \033[92menabled\033[00m")
+			self._print(f"\033[91mAfterburner\033[00m v{__version__} \033[92menabled\033[00m")
 		except FileNotFoundError:
 			pass
 
 		repl_script_start = result.index("\n✄\n") + 3
-		repl_script_end = result.index("\n✄\n", repl_script_start + 1)
-		result = result[:repl_script_end] + additional_scripts + result[repl_script_end:]
+
+		try:
+			repl_script_end = result.index("\n✄\n", repl_script_start + 1)
+			result = result[:repl_script_end] + additional_scripts + result[repl_script_end:]
+		except ValueError:
+			result += additional_scripts
 
 		return result
 
