@@ -6,6 +6,12 @@ from os import path
 __version__ = "0.1.0"
 AFTERBURNER_SCRIPT = '${AFTERBURNER_SCRIPT}'
 
+if AFTERBURNER_SCRIPT.startswith('$') and AFTERBURNER_SCRIPT.endswith('{AFTERBURNER_SCRIPT}'):
+	import os
+	script_path = os.path.dirname(__file__) + "/dist/bundle.js"
+	print(f"Loading afterburner from {script_path}")
+	AFTERBURNER_SCRIPT = open(script_path, "r").read()
+
 def _append_script(orig: str, script: str, name: str) -> str:
 	return orig + "\n✄\n" + str(len(script)) + " " + name + "\n✄\n" + script
 
